@@ -1,4 +1,13 @@
 <?php
+// === ANTI-DDOS ===
+$ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
+$banFile = __DIR__ . '/data/banned/' . md5($ip) . '.ban';
+if (file_exists($banFile) && filemtime($banFile) > time() - 600) {
+    http_response_code(429);
+    exit;
+}
+// === FIN ANTI-DDOS ===
+
 session_start();
 header('Content-Type: application/json');
 

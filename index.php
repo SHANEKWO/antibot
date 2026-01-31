@@ -1,4 +1,48 @@
 <?php
+// === ANTI-DDOS: Blocage immédiat AVANT tout traitement ===
+$ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
+$banFile = __DIR__ . '/data/banned/' . md5($ip) . '.ban';
+
+// IP bannie ? Redirect immédiat (pas de session, pas de require, rien)
+if (file_exists($banFile) && filemtime($banFile) > time() - 600) {
+    header('Location: https://google.fr');
+    exit;
+}
+
+// Rate limit ultra-léger (fichier simple)
+$rateFile = __DIR__ . '/data/ratelimit/' . md5($ip) . '.rate';
+$now = time();
+$hits = [];
+
+if (file_exists($rateFile)) {
+    $hits = array_filter(
+        explode("\n", file_get_contents($rateFile)),
+        fn($t) => $t && (int)$t > $now - 60
+    );
+}
+
+// +100 req/min = ban 10 minutes
+if (count($hits) > 100) {
+    @mkdir(__DIR__ . '/data/banned', 0755, true);
+    touch($banFile);
+    header('Location: https://google.fr');
+    exit;
+}
+
+// +30 req/min = block temporaire
+if (count($hits) > 30) {
+    header('HTTP/1.1 429 Too Many Requests');
+    header('Retry-After: 60');
+    exit('Rate limited');
+}
+
+// Enregistrer ce hit
+$hits[] = $now;
+@mkdir(dirname($rateFile), 0755, true);
+file_put_contents($rateFile, implode("\n", array_slice($hits, -200)), LOCK_EX);
+
+// === FIN ANTI-DDOS ===
+
 session_start();
 
 require_once __DIR__ . '/lib/RiskEngine.php';

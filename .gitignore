@@ -4,6 +4,7 @@ logs/*
 
 # Data
 data/*
+data/banned/*
 !data/.gitkeep
 
 # Cache
