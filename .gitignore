@@ -1,0 +1,25 @@
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Data
+data/*
+!data/.gitkeep
+
+# Cache
+cache/*
+!cache/.gitkeep
+
+# Archives
+*.zip
+*.tar.gz
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

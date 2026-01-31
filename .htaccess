@@ -1,0 +1,45 @@
+# Anti-Bot Protection - PRODUCTION
+
+# Force HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Block bots at Apache level → redirect silencieux vers Google
+RewriteCond %{HTTP_USER_AGENT} (curl|wget|python|scrapy|httpclient|java/|libwww|perl|ruby|go-http|axios|node-fetch) [NC]
+RewriteRule .* https://google.fr [R=302,L]
+
+# Désactiver listing
+Options -Indexes
+
+# Protéger les dossiers sensibles
+RewriteRule ^(lib|data|logs|cache)/ - [F,L]
+
+# Protéger les fichiers sensibles
+<FilesMatch "\.(log|json|md)$">
+    Require all denied
+</FilesMatch>
+
+# Seuls fichiers PHP autorisés
+<FilesMatch "^(?!index\.php$|verify\.php$|dashboard\.php$).+\.php$">
+    Require all denied
+</FilesMatch>
+
+# Protéger dashboard par IP (décommente et ajoute ton IP)
+# <Files "dashboard.php">
+#     Require ip 123.45.67.89
+# </Files>
+
+# Headers sécurité
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Cache control
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
