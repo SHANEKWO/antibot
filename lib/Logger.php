@@ -90,9 +90,10 @@ class Logger
                     $stats['by_day'][$date]['challenged']++;
                 }
 
-                // Recent (last 50)
-                if (count($stats['recent']) < 50) {
-                    $stats['recent'][] = $entry;
+                // Keep last 1000 entries for pagination (40 pages)
+                $stats['recent'][] = $entry;
+                if (count($stats['recent']) > 1000) {
+                    array_shift($stats['recent']);
                 }
             }
         }
