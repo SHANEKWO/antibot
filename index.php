@@ -1,45 +1,52 @@
 <?php
-// === ANTI-DDOS: Blocage immédiat AVANT tout traitement ===
+// === ANTI-DDOS: Blocage immédiat, ZERO écriture si spam ===
 $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
-$banFile = __DIR__ . '/data/banned/' . md5($ip) . '.ban';
+$ipHash = md5($ip);
+$banFile = __DIR__ . '/data/banned/' . $ipHash;
 
-// IP bannie ? Redirect immédiat (pas de session, pas de require, rien)
+// IP bannie ? Exit immédiat, AUCUNE écriture
 if (file_exists($banFile) && filemtime($banFile) > time() - 600) {
     header('Location: https://google.fr');
     exit;
 }
 
-// Rate limit ultra-léger (fichier simple)
-$rateFile = __DIR__ . '/data/ratelimit/' . md5($ip) . '.rate';
+// Rate limit en mémoire partagée (APCu) ou fichier minimal
+$rateFile = __DIR__ . '/data/ratelimit/' . $ipHash;
 $now = time();
-$hits = [];
+$window = floor($now / 60); // Fenêtre d'1 minute
 
+// Lire compteur actuel
+$count = 0;
 if (file_exists($rateFile)) {
-    $hits = array_filter(
-        explode("\n", file_get_contents($rateFile)),
-        fn($t) => $t && (int)$t > $now - 60
-    );
+    $data = @file_get_contents($rateFile);
+    if ($data) {
+        [$savedWindow, $savedCount] = explode(':', $data) + [0, 0];
+        if ((int)$savedWindow === $window) {
+            $count = (int)$savedCount;
+        }
+    }
 }
 
-// +100 req/min = ban 10 minutes
-if (count($hits) > 100) {
-    @mkdir(__DIR__ . '/data/banned', 0755, true);
-    touch($banFile);
+// >100 req/min = ban, UNE SEULE écriture puis plus rien
+if ($count > 100) {
+    if (!file_exists($banFile)) {
+        @mkdir(dirname($banFile), 0755, true);
+        touch($banFile);
+    }
     header('Location: https://google.fr');
     exit;
 }
 
-// +30 req/min = block temporaire
-if (count($hits) > 30) {
+// >30 req/min = block sans écriture
+if ($count > 30) {
     header('HTTP/1.1 429 Too Many Requests');
     header('Retry-After: 60');
-    exit('Rate limited');
+    exit;
 }
 
-// Enregistrer ce hit
-$hits[] = $now;
+// Incrémenter compteur (1 écriture légère)
 @mkdir(dirname($rateFile), 0755, true);
-file_put_contents($rateFile, implode("\n", array_slice($hits, -200)), LOCK_EX);
+file_put_contents($rateFile, $window . ':' . ($count + 1), LOCK_EX);
 
 // === FIN ANTI-DDOS ===
 

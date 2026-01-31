@@ -6,6 +6,17 @@ class Logger
 
     public static function log(string $type, array $data): void
     {
+        $ip = $data['ip'] ?? '';
+
+        // Anti-spam: max 10 logs par IP par minute
+        static $logCounts = [];
+        $key = $ip . ':' . floor(time() / 60);
+        $logCounts[$key] = ($logCounts[$key] ?? 0) + 1;
+
+        if ($logCounts[$key] > 10) {
+            return; // Skip, trop de logs pour cette IP
+        }
+
         if (!is_dir(self::$logDir)) {
             mkdir(self::$logDir, 0755, true);
         }
@@ -14,7 +25,7 @@ class Logger
             'time' => date('Y-m-d H:i:s'),
             'ts' => time(),
             'type' => $type,
-            'ip' => $data['ip'] ?? '',
+            'ip' => $ip,
             'ua' => substr($data['ua'] ?? '', 0, 150),
             'score' => $data['score'] ?? 0,
             'reasons' => $data['reasons'] ?? [],
