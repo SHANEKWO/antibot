@@ -34,9 +34,8 @@ help:
 	@echo "  make logs             Logs temps réel"
 	@echo ""
 	@echo "  $(YELLOW)PRODUCTION$(NC)"
-	@echo "  make check-prod       Vérifier avant déploiement"
-	@echo "  make prod             Déployer en production (interactif)"
-	@echo "  make zip              Créer antibot.zip"
+	@echo "  make prod             Configurer pour la prod"
+	@echo "  make check-prod       Vérifier la config"
 	@echo ""
 	@echo "  $(YELLOW)MAINTENANCE$(NC)"
 	@echo "  make stats            Statistiques"
@@ -241,67 +240,55 @@ clean-all: clean
 prod:
 	@echo ""
 	@echo "$(GREEN)╔════════════════════════════════════════════╗$(NC)"
-	@echo "$(GREEN)║        DÉPLOIEMENT PRODUCTION              ║$(NC)"
+	@echo "$(GREEN)║        CONFIGURATION PRODUCTION            ║$(NC)"
 	@echo "$(GREEN)╚════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@read -p "  URL de redirection (humains): " target_url; \
 	if [ -n "$$target_url" ]; then \
 		sed -i "s|'target_url' => '.*'|'target_url' => '$$target_url'|" config.php; \
+		echo "  $(GREEN)✓$(NC) Target: $$target_url"; \
 	fi
+	@echo ""
 	@read -p "  URL blocage (bots) [https://google.fr]: " block_url; \
 	block_url=$${block_url:-https://google.fr}; \
-	sed -i "s|'block_url' => '.*'|'block_url' => '$$block_url'|" config.php
+	sed -i "s|'block_url' => '.*'|'block_url' => '$$block_url'|" config.php; \
+	echo "  $(GREEN)✓$(NC) Block: $$block_url"
+	@echo ""
 	@read -p "  Mot de passe dashboard: " dash_pwd; \
 	if [ -n "$$dash_pwd" ]; then \
 		sed -i "s|'dashboard_password' => '.*'|'dashboard_password' => '$$dash_pwd'|" config.php; \
+		echo "  $(GREEN)✓$(NC) Mot de passe configuré"; \
+	else \
+		echo "  $(YELLOW)⚠$(NC) Mot de passe par défaut - pensez à le changer!"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)→ Génération clé secrète...$(NC)"
 	@SECRET=$$(openssl rand -hex 32); \
-	sed -i "s|'CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION'|'$$SECRET'|" lib/Fingerprint.php; \
+	sed -i "s|CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION|$$SECRET|" lib/Fingerprint.php 2>/dev/null || true; \
 	sed -i "s|private static string \$$secretKey = '[a-f0-9]\{64\}'|private static string \$$secretKey = '$$SECRET'|" lib/Fingerprint.php; \
 	echo "  $(GREEN)✓$(NC) Clé secrète générée"
 	@echo ""
-	@read -p "  Hôte SSH (ex: user@monserveur.com): " ssh_host; \
-	read -p "  Chemin distant [/var/www/antibot]: " remote_path; \
-	remote_path=$${remote_path:-/var/www/antibot}; \
-	echo ""; \
-	echo "$(YELLOW)→ Upload vers $$ssh_host:$$remote_path...$(NC)"; \
-	rsync -avz --progress \
-		--exclude 'logs/*' \
-		--exclude 'data/patterns/*' \
-		--exclude 'data/ip_cache/*' \
-		--exclude 'data/ratelimit/*' \
-		--exclude 'cache/*' \
-		--exclude '.git' \
-		--exclude 'Makefile' \
-		--exclude 'README.md' \
-		./ $$ssh_host:$$remote_path/; \
-	echo ""; \
-	echo "$(YELLOW)→ Configuration serveur...$(NC)"; \
-	ssh $$ssh_host "cd $$remote_path && mkdir -p data/patterns data/ip_cache data/ratelimit logs cache && chmod -R 777 data logs cache"; \
-	echo ""; \
-	echo "$(GREEN)╔════════════════════════════════════════════╗$(NC)"; \
-	echo "$(GREEN)║            DÉPLOIEMENT TERMINÉ             ║$(NC)"; \
-	echo "$(GREEN)╚════════════════════════════════════════════╝$(NC)"; \
-	echo ""; \
-	echo "  $(GREEN)✓$(NC) Anti-bot déployé!"; \
-	echo ""; \
-	echo "  $(YELLOW)Dashboard:$(NC) https://TONDOMAINE$$remote_path/dashboard.php"; \
-	echo ""
-
-deploy:
-	@echo "$(YELLOW)Utilise 'make prod' pour le déploiement interactif$(NC)"
+	@echo "$(YELLOW)→ Création dossiers...$(NC)"
+	@mkdir -p data/patterns data/ip_cache data/ratelimit logs cache
+	@echo "  $(GREEN)✓$(NC) Dossiers créés"
 	@echo ""
-	@if [ -z "$(HOST)" ]; then \
-		echo "Ou: make deploy HOST=user@server.com PATH=/var/www/antibot"; \
-		exit 1; \
-	fi
-	@DEPLOY_PATH=$${PATH:-/var/www/antibot}; \
-	rsync -avz --exclude 'logs/*' --exclude 'data/*' --exclude 'cache/*' --exclude '.git' \
-		./ $(HOST):$$DEPLOY_PATH/ && \
-	ssh $(HOST) "cd $$DEPLOY_PATH && mkdir -p data/patterns data/ip_cache data/ratelimit logs cache && chmod -R 777 data logs cache" && \
-	echo "$(GREEN)✓ Déployé!$(NC)"
+	@echo "$(YELLOW)→ Permissions...$(NC)"
+	@chmod -R 777 data logs cache
+	@chmod 644 *.php .htaccess
+	@chmod -R 755 lib
+	@echo "  $(GREEN)✓$(NC) Permissions OK"
+	@echo ""
+	@echo "$(GREEN)╔════════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║            PRÊT POUR PRODUCTION            ║$(NC)"
+	@echo "$(GREEN)╚════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "  $(GREEN)✓$(NC) Anti-bot configuré!"
+	@echo ""
+	@echo "  $(YELLOW)Configurez votre vhost Apache/Nginx pour pointer ici.$(NC)"
+	@echo ""
+	@echo "  Dashboard: /dashboard.php"
+	@echo ""
+
 
 # ============================================
 # CHECK PROD
