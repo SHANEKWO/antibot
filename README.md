@@ -10,37 +10,124 @@ Système anti-bot PHP léger et efficace. Redirige les humains vers votre site, 
 - **Dashboard** : Statistiques en temps réel
 - **Zero dépendance** : PHP pur, pas de base de données
 
-## Installation
+## Installation rapide
 
 ```bash
-git clone https://github.com/votre-repo/antibot.git
+git clone https://github.com/SHANEKWO/antibot.git
 cd antibot
-make install
+make prod
+```
+
+## Prérequis serveur
+
+- **PHP 8.0+**
+- **Apache** avec `mod_rewrite` activé (ou Nginx)
+- **OpenSSL** (pour génération clé secrète)
+
+### Ubuntu/Debian
+
+```bash
+sudo apt update
+sudo apt install php apache2 libapache2-mod-php
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+```
+
+## Configuration production
+
+### 1. Clone et configuration
+
+```bash
+cd /var/www
+git clone https://github.com/SHANEKWO/antibot.git
+cd antibot
+make prod
 ```
 
 Le setup interactif vous demandera :
-- URL de redirection (humains)
-- URL de blocage (bots)
+- URL de redirection (humains) → votre site
+- URL de blocage (bots) → google.fr par défaut
 - Mot de passe dashboard
 
-## Utilisation
+### 2. Configuration Apache
+
+Créez un vhost `/etc/apache2/sites-available/antibot.conf` :
+
+```apache
+<VirtualHost *:80>
+    ServerName votredomaine.com
+    DocumentRoot /var/www/antibot
+
+    <Directory /var/www/antibot>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/antibot_error.log
+    CustomLog ${APACHE_LOG_DIR}/antibot_access.log combined
+</VirtualHost>
+```
+
+Activez le site :
+
+```bash
+sudo a2ensite antibot.conf
+sudo systemctl reload apache2
+```
+
+### 3. HTTPS avec Let's Encrypt
+
+```bash
+sudo apt install certbot python3-certbot-apache
+sudo certbot --apache -d votredomaine.com
+```
+
+### 4. Sécurisation dashboard
+
+Éditez `.htaccess` pour restreindre l'accès au dashboard par IP :
+
+```apache
+<Files "dashboard.php">
+    Require ip 123.456.789.0
+</Files>
+```
+
+## Configuration Nginx (alternative)
+
+```nginx
+server {
+    listen 80;
+    server_name votredomaine.com;
+    root /var/www/antibot;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ ^/(lib|data|logs|cache)/ {
+        deny all;
+    }
+}
+```
+
+## Commandes disponibles
 
 ```bash
 make help          # Voir toutes les commandes
-make dev           # Serveur local :8080
-make check-prod    # Vérifier avant déploiement
-make prod          # Déployer en production
-```
-
-## Configuration
-
-Éditez `config.php` :
-
-```php
-'target_url' => 'https://votresite.com',  // Humains → ici
-'block_url' => 'https://google.fr',        // Bots → ici
-'block_threshold' => 70,                   // Score de blocage
-'dashboard_password' => 'changez-moi',     // Mot de passe dashboard
+make prod          # Configurer pour la production
+make check-prod    # Vérifier la configuration
+make dev           # Serveur local :8080 (test)
+make test          # Tests automatiques
+make logs          # Logs en temps réel
+make stats         # Statistiques
+make clean         # Nettoyer logs/cache
 ```
 
 ## Comment ça marche
@@ -79,6 +166,24 @@ Visiteur
 | Headers manquants | +15-25 points |
 | FAI français (Orange, Free...) | -20 points (bonus) |
 
+## Configuration avancée
+
+Éditez `config.php` :
+
+```php
+return [
+    'target_url' => 'https://votresite.com',  // Humains → ici
+    'block_url' => 'https://google.fr',        // Bots → ici
+
+    'instant_redirect_threshold' => 25,        // < 25 = redirect instantané
+    'challenge_threshold' => 40,               // >= 40 = challenge JS
+    'block_threshold' => 70,                   // >= 70 = bloqué
+
+    'pow_difficulty' => 4,                     // Difficulté Proof of Work
+    'dashboard_password' => 'changez-moi',     // Mot de passe dashboard
+];
+```
+
 ## Dashboard
 
 Accédez à `/dashboard.php` pour voir :
@@ -104,6 +209,15 @@ antibot/
     ├── RateLimit.php   # Rate limiting
     └── Logger.php      # Logs
 ```
+
+## Checklist production
+
+- [ ] `make prod` exécuté
+- [ ] Mot de passe dashboard changé (pas `admin123`)
+- [ ] HTTPS activé
+- [ ] Dashboard restreint par IP
+- [ ] Vhost Apache/Nginx configuré
+- [ ] Permissions OK (`make check-prod`)
 
 ## Licence
 
