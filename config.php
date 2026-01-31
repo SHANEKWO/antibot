@@ -12,10 +12,10 @@ return [
     'target_url' => 'https://example.com',       // Humains → ici
     'block_url' => 'https://google.fr',          // Bots → ici (invisible)
 
-    // ====== SEUILS ======
-    'instant_redirect_threshold' => 25,          // < 25 = redirect instantané
-    'challenge_threshold' => 40,                 // >= 40 = challenge JS
-    'block_threshold' => 70,                     // >= 70 = redirigé vers block_url
+    // ====== SEUILS (MODE STRICT) ======
+    'instant_redirect_threshold' => 10,          // < 10 = redirect instantané (humain parfait)
+    'challenge_threshold' => 15,                 // >= 15 = challenge JS
+    'block_threshold' => 30,                     // >= 30 = redirigé vers block_url
 
     // ====== OPTIONS ======
     'pow_difficulty' => 4,

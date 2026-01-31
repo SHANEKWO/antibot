@@ -141,7 +141,7 @@ class RiskEngine
     private function analyzeUserAgent(string $ua): array
     {
         if (empty($ua)) {
-            return ['score' => 50, 'match' => 'empty_ua'];
+            return ['score' => 100, 'match' => 'empty_ua'];
         }
 
         // Check against signatures
@@ -155,21 +155,21 @@ class RiskEngine
         $score = 0;
         $match = null;
 
-        // Very short UA
+        // Very short UA - BLOCK
         if (strlen($ua) < 30) {
-            $score += 20;
+            $score += 40;
             $match = 'short_ua';
         }
 
-        // No version numbers (suspicious)
+        // No version numbers (suspicious) - BLOCK
         if (!preg_match('/\d+\.\d+/', $ua)) {
-            $score += 15;
+            $score += 35;
             $match = 'no_version';
         }
 
-        // Inconsistent browser claims
+        // Inconsistent browser claims - BLOCK
         if (preg_match('/Chrome/', $ua) && preg_match('/Firefox/', $ua)) {
-            $score += 30;
+            $score += 50;
             $match = 'inconsistent_browser';
         }
 
@@ -190,15 +190,15 @@ class RiskEngine
         $score = 0;
         $reasons = [];
 
-        // Missing Accept-Language (browsers always send this)
+        // Missing Accept-Language (browsers always send this) - BLOCK
         if (empty($data['accept_language'])) {
-            $score += 25;
+            $score += 35;
             $reasons[] = 'no_accept_language';
         }
 
-        // Missing Accept-Encoding
+        // Missing Accept-Encoding - BLOCK
         if (empty($data['accept_encoding'])) {
-            $score += 15;
+            $score += 30;
             $reasons[] = 'no_accept_encoding';
         }
 
@@ -249,25 +249,25 @@ class RiskEngine
         // Query IP reputation API
         $ipInfo = $this->queryIPReputation($ip);
         if ($ipInfo) {
-            // Datacenter detection
+            // Datacenter detection - BLOCK
             if ($ipInfo['is_datacenter'] ?? false) {
-                $score += 40;
+                $score += 50;
                 $reasons[] = 'datacenter';
             }
 
-            // VPN/Proxy detection
+            // VPN/Proxy detection - BLOCK
             if ($ipInfo['is_vpn'] ?? false) {
-                $score += 25;
+                $score += 50;
                 $reasons[] = 'vpn';
             }
 
             if ($ipInfo['is_proxy'] ?? false) {
-                $score += 30;
+                $score += 50;
                 $reasons[] = 'proxy';
             }
 
             if ($ipInfo['is_tor'] ?? false) {
-                $score += 45;
+                $score += 80;
                 $reasons[] = 'tor';
             }
 
@@ -343,18 +343,18 @@ class RiskEngine
         $recentVisits = array_filter($visits, fn($t) => $now - $t < 60); // Last minute
         $hourlyVisits = array_filter($visits, fn($t) => $now - $t < 3600); // Last hour
 
-        // High frequency
-        if (count($recentVisits) > 10) {
-            $score += 30;
+        // High frequency - BLOCK
+        if (count($recentVisits) > 5) {
+            $score += 50;
             $reasons[] = 'high_frequency';
-        } elseif (count($recentVisits) > 5) {
-            $score += 15;
+        } elseif (count($recentVisits) > 3) {
+            $score += 30;
             $reasons[] = 'moderate_frequency';
         }
 
-        // Very high hourly rate
-        if (count($hourlyVisits) > 100) {
-            $score += 40;
+        // Very high hourly rate - BLOCK
+        if (count($hourlyVisits) > 50) {
+            $score += 60;
             $reasons[] = 'very_high_hourly';
         }
 
