@@ -1,13 +1,46 @@
-# Anti-Bot Protection - PRODUCTION
+# Anti-Bot Protection - HARDENED
+# ================================
+
+# === ANTI-DDOS APACHE LEVEL ===
+
+# Limiter la taille des requêtes (avant PHP)
+LimitRequestBody 10240
+LimitRequestFields 50
+LimitRequestFieldSize 4094
+LimitRequestLine 4094
+
+# Timeout court pour libérer les connexions
+<IfModule mod_reqtimeout.c>
+    RequestReadTimeout header=5 body=10
+</IfModule>
+
+# Rate limiting bandwidth (si mod_ratelimit actif)
+<IfModule mod_ratelimit.c>
+    SetOutputFilter RATE_LIMIT
+    SetEnv rate-limit 1000
+</IfModule>
+
+# === REDIRECTIONS ===
+
+RewriteEngine On
 
 # Force HTTPS
-RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # Block bots at Apache level → redirect silencieux vers Google
-RewriteCond %{HTTP_USER_AGENT} (curl|wget|python|scrapy|httpclient|java/|libwww|perl|ruby|go-http|axios|node-fetch) [NC]
+RewriteCond %{HTTP_USER_AGENT} (curl|wget|python|scrapy|httpclient|java/|libwww|perl|ruby|go-http|axios|node-fetch|headless|phantom|selenium|puppeteer|playwright) [NC]
 RewriteRule .* https://google.fr [R=302,L]
+
+# Block empty User-Agent
+RewriteCond %{HTTP_USER_AGENT} ^$ [NC]
+RewriteRule .* https://google.fr [R=302,L]
+
+# Block requests without Accept header (bots)
+RewriteCond %{HTTP:Accept} ^$
+RewriteRule .* https://google.fr [R=302,L]
+
+# === PROTECTION FICHIERS ===
 
 # Désactiver listing
 Options -Indexes
@@ -16,7 +49,7 @@ Options -Indexes
 RewriteRule ^(lib|data|logs|cache)/ - [F,L]
 
 # Protéger les fichiers sensibles
-<FilesMatch "\.(log|json|md)$">
+<FilesMatch "\.(log|json|md|lock|env|ini|bak|sql|tar|gz|zip)$">
     Require all denied
 </FilesMatch>
 
@@ -30,16 +63,32 @@ RewriteRule ^(lib|data|logs|cache)/ - [F,L]
 #     Require ip 123.45.67.89
 # </Files>
 
-# Headers sécurité
+# === HEADERS SECURITE ===
+
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "DENY"
     Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+    # Anti-clickjacking
+    Header always set X-Frame-Options "DENY"
+
+    # Cacher les infos serveur
+    Header unset X-Powered-By
+    Header unset Server
 </IfModule>
 
-# Cache control
+# === CACHE ===
+
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+# === COMPRESSION ===
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript
 </IfModule>
