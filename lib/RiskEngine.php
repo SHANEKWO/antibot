@@ -30,7 +30,7 @@ class RiskEngine
             ['pattern' => '/yandexbot/i', 'score' => 80, 'name' => 'Yandexbot'],
             ['pattern' => '/baiduspider/i', 'score' => 80, 'name' => 'Baiduspider'],
             ['pattern' => '/duckduckbot/i', 'score' => 80, 'name' => 'DuckDuckBot'],
-            ['pattern' => '/slurp/i', 'score' => 80, 'name' => 'Yahoo Slurp'],
+            ['pattern' => '/yahoo.*slurp|slurp.*yahoo/i', 'score' => 80, 'name' => 'Yahoo Slurp'],
             ['pattern' => '/facebookexternalhit/i', 'score' => 70, 'name' => 'Facebook'],
             ['pattern' => '/twitterbot/i', 'score' => 70, 'name' => 'Twitter'],
             ['pattern' => '/linkedinbot/i', 'score' => 70, 'name' => 'LinkedIn'],
@@ -50,8 +50,8 @@ class RiskEngine
             ['pattern' => '/axios/i', 'score' => 85, 'name' => 'Axios'],
             ['pattern' => '/node-fetch/i', 'score' => 85, 'name' => 'node-fetch'],
             ['pattern' => '/go-http-client/i', 'score' => 85, 'name' => 'Go HTTP'],
-            ['pattern' => '/ruby/i', 'score' => 80, 'name' => 'Ruby'],
-            ['pattern' => '/perl/i', 'score' => 80, 'name' => 'Perl'],
+            ['pattern' => '/ruby\/|mechanize/i', 'score' => 80, 'name' => 'Ruby'],
+            ['pattern' => '/libwww-perl|lwp-|perl\/|WWW-Mechanize/i', 'score' => 80, 'name' => 'Perl'],
             ['pattern' => '/php\//i', 'score' => 85, 'name' => 'PHP'],
 
             // Headless browsers
@@ -66,7 +66,7 @@ class RiskEngine
             ['pattern' => '/semrush/i', 'score' => 90, 'name' => 'SEMrush'],
             ['pattern' => '/ahrefs/i', 'score' => 90, 'name' => 'Ahrefs'],
             ['pattern' => '/moz\.com|dotbot|rogerbot/i', 'score' => 85, 'name' => 'Moz'],
-            ['pattern' => '/majestic/i', 'score' => 85, 'name' => 'Majestic'],
+            ['pattern' => '/majestic.*bot|MJ12bot/i', 'score' => 85, 'name' => 'Majestic'],
             ['pattern' => '/dotbot/i', 'score' => 85, 'name' => 'DotBot'],
             ['pattern' => '/mj12bot/i', 'score' => 85, 'name' => 'MJ12Bot'],
             ['pattern' => '/petalbot/i', 'score' => 85, 'name' => 'PetalBot'],
@@ -76,7 +76,7 @@ class RiskEngine
             ['pattern' => '/spider/i', 'score' => 70, 'name' => 'Generic spider'],
             ['pattern' => '/crawler/i', 'score' => 70, 'name' => 'Generic crawler'],
             ['pattern' => '/scraper/i', 'score' => 90, 'name' => 'Generic scraper'],
-            ['pattern' => '/scan/i', 'score' => 75, 'name' => 'Generic scanner'],
+            ['pattern' => '/scanner|scan.*bot|security.*scan/i', 'score' => 75, 'name' => 'Generic scanner'],
         ];
 
         // Datacenter ASN patterns
