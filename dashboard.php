@@ -12,6 +12,21 @@ if ($_GET['logout'] ?? false) {
     unset($_SESSION['dashboard_auth']);
 }
 
+// Actions admin
+if ($_SESSION['dashboard_auth'] ?? false) {
+    if ($_POST['action'] ?? '' === 'clear_logs') {
+        array_map('unlink', glob(__DIR__ . '/logs/*.json'));
+        header('Location: dashboard.php?cleared=1');
+        exit;
+    }
+    if ($_POST['action'] ?? '' === 'clear_bans') {
+        array_map('unlink', glob(__DIR__ . '/data/banned/*'));
+        array_map('unlink', glob(__DIR__ . '/data/ratelimit/*'));
+        header('Location: dashboard.php?bans_cleared=1');
+        exit;
+    }
+}
+
 if (!($_SESSION['dashboard_auth'] ?? false)) {
     ?>
     <!DOCTYPE html>
@@ -139,13 +154,37 @@ function getReasonLabel($reason) {
         .pagination a{background:var(--bg);color:var(--text)}
         .pagination a:hover{background:var(--blue);color:#fff}
         .pagination .current{background:var(--blue);color:#fff;font-weight:600}
+        .header-actions{display:flex;gap:.75rem;align-items:center}
+        .btn-danger,.btn-secondary{padding:.5rem .75rem;border:none;border-radius:4px;font-size:.75rem;cursor:pointer;font-weight:500}
+        .btn-danger{background:rgba(239,68,68,.2);color:var(--red)}
+        .btn-danger:hover{background:rgba(239,68,68,.4)}
+        .btn-secondary{background:var(--bg);color:var(--muted)}
+        .btn-secondary:hover{background:var(--border);color:var(--text)}
+        .alert{padding:.75rem 1rem;border-radius:6px;margin-bottom:1rem;font-size:.875rem}
+        .alert.success{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🛡️ AntiBot Dashboard</h1>
-        <a href="?logout=1" class="logout">Déconnexion</a>
+        <div class="header-actions">
+            <form method="POST" style="display:inline" onsubmit="return confirm('Supprimer tous les logs ?')">
+                <input type="hidden" name="action" value="clear_logs">
+                <button type="submit" class="btn-danger">🗑️ Clear logs</button>
+            </form>
+            <form method="POST" style="display:inline" onsubmit="return confirm('Débannir toutes les IPs ?')">
+                <input type="hidden" name="action" value="clear_bans">
+                <button type="submit" class="btn-secondary">🔓 Clear bans</button>
+            </form>
+            <a href="?logout=1" class="logout">Déconnexion</a>
+        </div>
     </div>
+    <?php if ($_GET['cleared'] ?? false): ?>
+        <div class="alert success">✅ Logs supprimés</div>
+    <?php endif; ?>
+    <?php if ($_GET['bans_cleared'] ?? false): ?>
+        <div class="alert success">✅ Bans supprimés</div>
+    <?php endif; ?>
 
     <div class="grid">
         <div class="card">
