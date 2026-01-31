@@ -65,7 +65,7 @@ class RiskEngine
             // SEO tools
             ['pattern' => '/semrush/i', 'score' => 90, 'name' => 'SEMrush'],
             ['pattern' => '/ahrefs/i', 'score' => 90, 'name' => 'Ahrefs'],
-            ['pattern' => '/moz/i', 'score' => 85, 'name' => 'Moz'],
+            ['pattern' => '/moz\.com|dotbot|rogerbot/i', 'score' => 85, 'name' => 'Moz'],
             ['pattern' => '/majestic/i', 'score' => 85, 'name' => 'Majestic'],
             ['pattern' => '/dotbot/i', 'score' => 85, 'name' => 'DotBot'],
             ['pattern' => '/mj12bot/i', 'score' => 85, 'name' => 'MJ12Bot'],
