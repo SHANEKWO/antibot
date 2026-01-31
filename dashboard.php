@@ -37,6 +37,14 @@ if (!($_SESSION['dashboard_auth'] ?? false)) {
 $stats = Logger::getStats(7);
 $blockRate = $stats['total'] > 0 ? round($stats['blocked'] / $stats['total'] * 100, 1) : 0;
 
+// Pagination
+$perPage = 25;
+$totalEntries = count($stats['recent']);
+$totalPages = max(1, ceil($totalEntries / $perPage));
+$currentPage = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$offset = ($currentPage - 1) * $perPage;
+$pagedRecent = array_slice(array_reverse($stats['recent']), $offset, $perPage);
+
 // Labels UI friendly
 $reasonLabels = [
     'ua:curl' => '🔧 curl',
@@ -126,6 +134,11 @@ function getReasonLabel($reason) {
         .legend{display:flex;gap:1rem;margin-bottom:.5rem;font-size:.75rem}
         .legend span{display:flex;align-items:center;gap:.25rem}
         .legend .dot{width:8px;height:8px;border-radius:50%}
+        .pagination{display:flex;gap:.5rem;justify-content:center;align-items:center;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+        .pagination a,.pagination span{padding:.5rem .75rem;border-radius:4px;font-size:.875rem;text-decoration:none}
+        .pagination a{background:var(--bg);color:var(--text)}
+        .pagination a:hover{background:var(--blue);color:#fff}
+        .pagination .current{background:var(--blue);color:#fff;font-weight:600}
     </style>
 </head>
 <body>
@@ -241,7 +254,10 @@ function getReasonLabel($reason) {
     </div>
 
     <div class="card">
-        <div class="section-title">📋 Dernières requêtes</div>
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>📋 Dernières requêtes</span>
+            <span style="font-size:.75rem;font-weight:400"><?= $totalEntries ?> entrées</span>
+        </div>
         <div style="overflow-x:auto">
             <table>
                 <tr>
@@ -252,7 +268,7 @@ function getReasonLabel($reason) {
                     <th>Raisons</th>
                     <th>User-Agent</th>
                 </tr>
-                <?php foreach (array_reverse($stats['recent']) as $entry): ?>
+                <?php foreach ($pagedRecent as $entry): ?>
                     <tr>
                         <td><?= date('H:i:s', strtotime($entry['time'])) ?></td>
                         <td>
@@ -274,11 +290,37 @@ function getReasonLabel($reason) {
                         <td class="ua" title="<?= htmlspecialchars($entry['ua']) ?>"><?= htmlspecialchars($entry['ua']) ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (empty($stats['recent'])): ?>
+                <?php if (empty($pagedRecent)): ?>
                     <tr><td colspan="6" style="color:var(--muted)">Aucune requête enregistrée</td></tr>
                 <?php endif; ?>
             </table>
         </div>
+
+        <?php if ($totalPages > 1): ?>
+        <div class="pagination">
+            <?php if ($currentPage > 1): ?>
+                <a href="?page=1">« Premier</a>
+                <a href="?page=<?= $currentPage - 1 ?>">‹ Préc</a>
+            <?php endif; ?>
+
+            <?php
+            $start = max(1, $currentPage - 2);
+            $end = min($totalPages, $currentPage + 2);
+            for ($p = $start; $p <= $end; $p++):
+            ?>
+                <?php if ($p === $currentPage): ?>
+                    <span class="current"><?= $p ?></span>
+                <?php else: ?>
+                    <a href="?page=<?= $p ?>"><?= $p ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if ($currentPage < $totalPages): ?>
+                <a href="?page=<?= $currentPage + 1 ?>">Suiv ›</a>
+                <a href="?page=<?= $totalPages ?>">Dernier »</a>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
     </div>
 
     <script>
