@@ -1,13 +1,49 @@
 <?php
+// === ANTI-BRUTEFORCE ===
+$ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$loginFile = __DIR__ . '/data/login_attempts/' . md5($ip);
+@mkdir(dirname($loginFile), 0755, true);
+
+$attempts = 0;
+$lockout = false;
+if (file_exists($loginFile)) {
+    $data = json_decode(file_get_contents($loginFile), true);
+    if ($data && ($data['lockout_until'] ?? 0) > time()) {
+        $lockout = true;
+    } elseif ($data && ($data['window'] ?? 0) > time() - 300) {
+        $attempts = $data['attempts'] ?? 0;
+    }
+}
+
+if ($lockout) {
+    http_response_code(429);
+    die('Trop de tentatives. Réessayez dans 5 minutes.');
+}
+// === FIN ANTI-BRUTEFORCE ===
+
 require_once __DIR__ . '/lib/Logger.php';
 
 $config = require __DIR__ . '/config.php';
 $password = $config['dashboard_password'] ?? 'admin123';
 
 session_start();
-if ($_POST['password'] ?? '' === $password) {
-    $_SESSION['dashboard_auth'] = true;
+
+// Vérif password avec rate limit
+if (isset($_POST['password'])) {
+    if ($_POST['password'] === $password) {
+        $_SESSION['dashboard_auth'] = true;
+        @unlink($loginFile); // Reset attempts
+    } else {
+        // Mauvais password = incrémenter
+        $attempts++;
+        $data = ['attempts' => $attempts, 'window' => time()];
+        if ($attempts >= 5) {
+            $data['lockout_until'] = time() + 300; // 5 min lockout
+        }
+        file_put_contents($loginFile, json_encode($data), LOCK_EX);
+    }
 }
+
 if ($_GET['logout'] ?? false) {
     unset($_SESSION['dashboard_auth']);
 }

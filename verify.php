@@ -1,9 +1,24 @@
 <?php
-// === ANTI-DDOS ===
-$ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
-$banFile = __DIR__ . '/data/banned/' . md5($ip) . '.ban';
+// === ANTI-DDOS HARDENED ===
+$ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+$banFile = __DIR__ . '/data/banned/' . md5($ip);
+
+// IP bannie
 if (file_exists($banFile) && filemtime($banFile) > time() - 600) {
     http_response_code(429);
+    exit;
+}
+
+// Limite taille POST (max 8KB - largement suffisant pour les signaux)
+$contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+if ($contentLength > 8192) {
+    http_response_code(413); // Payload Too Large
+    exit;
+}
+
+// Méthode POST uniquement
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     exit;
 }
 // === FIN ANTI-DDOS ===
@@ -16,12 +31,10 @@ require_once __DIR__ . '/lib/Logger.php';
 
 $config = require __DIR__ . '/config.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false]);
-    exit;
-}
+// Lire avec limite stricte
+$rawInput = file_get_contents('php://input', false, null, 0, 8192);
+$input = json_decode($rawInput, true);
 
-$input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     echo json_encode(['success' => false]);
     exit;

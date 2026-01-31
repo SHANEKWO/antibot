@@ -1,22 +1,60 @@
 <?php
-// === ANTI-DDOS: Blocage immédiat, ZERO écriture si spam ===
-$ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
-$ipHash = md5($ip);
-$banFile = __DIR__ . '/data/banned/' . $ipHash;
+/**
+ * === ANTI-DDOS HARDENED ===
+ * Toutes les protections AVANT tout traitement lourd
+ */
 
-// IP bannie ? Exit immédiat, AUCUNE écriture
-if (file_exists($banFile) && filemtime($banFile) > time() - 600) {
+// 1. PROTECTION X-FORWARDED-FOR SPOOFING
+// Ne faire confiance à X-Forwarded-For que si configuré (derrière un proxy connu)
+$trustedProxies = []; // Ajouter les IPs de ton reverse proxy si besoin: ['127.0.0.1', '10.0.0.1']
+$realIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+if (!empty($trustedProxies) && in_array($realIp, $trustedProxies)) {
+    // Derrière un proxy de confiance, on peut lire X-Forwarded-For
+    $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $realIp)[0]);
+} else {
+    // Pas de proxy ou proxy non configuré = IP directe uniquement
+    $ip = $realIp;
+}
+
+// Valider que c'est une vraie IP
+if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+    $ip = '0.0.0.0';
+}
+
+$ipHash = md5($ip);
+$dataDir = __DIR__ . '/data';
+
+// 2. GLOBAL RATE LIMIT (protection botnet distribué)
+$globalFile = $dataDir . '/global_rate';
+$now = time();
+$globalWindow = floor($now / 1); // Fenêtre de 1 seconde
+
+if (file_exists($globalFile)) {
+    $gdata = @file_get_contents($globalFile);
+    if ($gdata) {
+        [$gWin, $gCount] = explode(':', $gdata) + [0, 0];
+        if ((int)$gWin === $globalWindow && (int)$gCount > 500) {
+            // Plus de 500 req/sec global = serveur sous attaque
+            header('HTTP/1.1 503 Service Unavailable');
+            header('Retry-After: 5');
+            exit;
+        }
+    }
+}
+
+// 3. IP BANNIE ? Exit immédiat, ZERO traitement
+$banFile = $dataDir . '/banned/' . $ipHash;
+if (file_exists($banFile) && filemtime($banFile) > $now - 600) {
     header('Location: https://google.fr');
     exit;
 }
 
-// Rate limit en mémoire partagée (APCu) ou fichier minimal
-$rateFile = __DIR__ . '/data/ratelimit/' . $ipHash;
-$now = time();
-$window = floor($now / 60); // Fenêtre d'1 minute
-
-// Lire compteur actuel
+// 4. RATE LIMIT PAR IP
+$rateFile = $dataDir . '/ratelimit/' . $ipHash;
+$window = floor($now / 60);
 $count = 0;
+
 if (file_exists($rateFile)) {
     $data = @file_get_contents($rateFile);
     if ($data) {
@@ -27,7 +65,7 @@ if (file_exists($rateFile)) {
     }
 }
 
-// >100 req/min = ban, UNE SEULE écriture puis plus rien
+// >100 req/min = ban 10 min
 if ($count > 100) {
     if (!file_exists($banFile)) {
         @mkdir(dirname($banFile), 0755, true);
@@ -37,19 +75,35 @@ if ($count > 100) {
     exit;
 }
 
-// >30 req/min = block sans écriture
+// >30 req/min = block temporaire
 if ($count > 30) {
     header('HTTP/1.1 429 Too Many Requests');
     header('Retry-After: 60');
     exit;
 }
 
-// Incrémenter compteur (1 écriture légère)
-@mkdir(dirname($rateFile), 0755, true);
+// 5. FILE BOMB PROTECTION - Nettoyer si trop de fichiers
+$ratelimitDir = $dataDir . '/ratelimit';
+@mkdir($ratelimitDir, 0755, true);
+$fileCount = count(glob($ratelimitDir . '/*'));
+if ($fileCount > 10000) {
+    // Trop de fichiers, nettoyer les vieux
+    $files = glob($ratelimitDir . '/*');
+    $cutoff = $now - 120; // Plus vieux que 2 min
+    foreach ($files as $f) {
+        if (filemtime($f) < $cutoff) {
+            @unlink($f);
+        }
+    }
+}
+
+// Incrémenter les compteurs (écritures minimales)
 file_put_contents($rateFile, $window . ':' . ($count + 1), LOCK_EX);
+@file_put_contents($globalFile, $globalWindow . ':' . ((file_exists($globalFile) && strpos(file_get_contents($globalFile), $globalWindow . ':') === 0) ? ((int)explode(':', file_get_contents($globalFile))[1] + 1) : 1), LOCK_EX);
 
 // === FIN ANTI-DDOS ===
 
+// Maintenant on peut charger les libs (après rate limit)
 session_start();
 
 require_once __DIR__ . '/lib/RiskEngine.php';
@@ -59,7 +113,7 @@ require_once __DIR__ . '/lib/Logger.php';
 
 $config = require __DIR__ . '/config.php';
 
-// Déjà vérifié ? Redirect instantané
+// Cookie valide ? Redirect instantané
 if (isset($_COOKIE[$config['session_cookie']])) {
     if (Fingerprint::validateToken($_COOKIE[$config['session_cookie']])) {
         header('Location: ' . $config['target_url']);
@@ -68,7 +122,6 @@ if (isset($_COOKIE[$config['session_cookie']])) {
 }
 
 // Analyse du risque
-$ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
 $risk = new RiskEngine();
@@ -107,8 +160,7 @@ if ($score['total'] < $config['instant_redirect_threshold']) {
     exit;
 }
 
-// Challenge (pas de log ici, on log le résultat final dans verify.php)
-
+// Challenge
 $token = Fingerprint::generateChallenge();
 $_SESSION['challenge'] = $token;
 $_SESSION['challenge_time'] = microtime(true);
