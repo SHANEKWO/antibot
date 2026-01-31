@@ -244,19 +244,27 @@ prod:
 	@echo "$(GREEN)║        DÉPLOIEMENT PRODUCTION              ║$(NC)"
 	@echo "$(GREEN)╚════════════════════════════════════════════╝$(NC)"
 	@echo ""
+	@read -p "  URL de redirection (humains): " target_url; \
+	if [ -n "$$target_url" ]; then \
+		sed -i "s|'target_url' => '.*'|'target_url' => '$$target_url'|" config.php; \
+	fi
+	@read -p "  URL blocage (bots) [https://google.fr]: " block_url; \
+	block_url=$${block_url:-https://google.fr}; \
+	sed -i "s|'block_url' => '.*'|'block_url' => '$$block_url'|" config.php
+	@read -p "  Mot de passe dashboard: " dash_pwd; \
+	if [ -n "$$dash_pwd" ]; then \
+		sed -i "s|'dashboard_password' => '.*'|'dashboard_password' => '$$dash_pwd'|" config.php; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)→ Génération clé secrète...$(NC)"
+	@SECRET=$$(openssl rand -hex 32); \
+	sed -i "s|'CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION'|'$$SECRET'|" lib/Fingerprint.php; \
+	sed -i "s|private static string \$$secretKey = '[a-f0-9]\{64\}'|private static string \$$secretKey = '$$SECRET'|" lib/Fingerprint.php; \
+	echo "  $(GREEN)✓$(NC) Clé secrète générée"
+	@echo ""
 	@read -p "  Hôte SSH (ex: user@monserveur.com): " ssh_host; \
 	read -p "  Chemin distant [/var/www/antibot]: " remote_path; \
 	remote_path=$${remote_path:-/var/www/antibot}; \
-	echo ""; \
-	echo "$(YELLOW)→ Vérification locale...$(NC)"; \
-	if grep -q "admin123" config.php; then \
-		echo "  $(RED)✗ Mot de passe dashboard non changé!$(NC)"; \
-		read -p "  Nouveau mot de passe: " new_pwd; \
-		sed -i "s|'dashboard_password' => '.*'|'dashboard_password' => '$$new_pwd'|" config.php; \
-		echo "  $(GREEN)✓$(NC) Mot de passe mis à jour"; \
-	else \
-		echo "  $(GREEN)✓$(NC) Config OK"; \
-	fi; \
 	echo ""; \
 	echo "$(YELLOW)→ Upload vers $$ssh_host:$$remote_path...$(NC)"; \
 	rsync -avz --progress \
@@ -267,20 +275,19 @@ prod:
 		--exclude 'cache/*' \
 		--exclude '.git' \
 		--exclude 'Makefile' \
+		--exclude 'README.md' \
 		./ $$ssh_host:$$remote_path/; \
 	echo ""; \
-	echo "$(YELLOW)→ Configuration distante...$(NC)"; \
+	echo "$(YELLOW)→ Configuration serveur...$(NC)"; \
 	ssh $$ssh_host "cd $$remote_path && mkdir -p data/patterns data/ip_cache data/ratelimit logs cache && chmod -R 777 data logs cache"; \
 	echo ""; \
 	echo "$(GREEN)╔════════════════════════════════════════════╗$(NC)"; \
 	echo "$(GREEN)║            DÉPLOIEMENT TERMINÉ             ║$(NC)"; \
 	echo "$(GREEN)╚════════════════════════════════════════════╝$(NC)"; \
 	echo ""; \
-	echo "  $(GREEN)✓$(NC) Anti-bot déployé sur $$ssh_host"; \
+	echo "  $(GREEN)✓$(NC) Anti-bot déployé!"; \
 	echo ""; \
-	echo "  $(YELLOW)URLs:$(NC)"; \
-	echo "  • Anti-bot: https://$$ssh_host$$remote_path/"; \
-	echo "  • Dashboard: https://$$ssh_host$$remote_path/dashboard.php"; \
+	echo "  $(YELLOW)Dashboard:$(NC) https://TONDOMAINE$$remote_path/dashboard.php"; \
 	echo ""
 
 deploy:
